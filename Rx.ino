@@ -19,20 +19,20 @@
 #include "addons/RTDBHelper.h"
 
 // Insert your network credentials
-#define WIFI_SSID "____"
-#define WIFI_PASSWORD "____"
+#define WIFI_SSID "*******************"
+#define WIFI_PASSWORD "*******************"
 
 // Insert Firebase project API Key
 // alfa
-//#define API_KEY "____"
+//#define API_KEY "*******************"
 // evander
-#define API_KEY "____"
+#define API_KEY "*******************"
 
 // Insert RTDB URLefine the RTDB URL */
 // alfa
-//#define DATABASE_URL "____"
+//#define DATABASE_URL "*******************"
 // evander
-#define DATABASE_URL "____" 
+#define DATABASE_URL "*******************" 
 
 //Define Firebase Data object
 FirebaseData fbdo;
@@ -145,16 +145,16 @@ void FirebaseOperation()
   if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 1000 || sendDataPrevMillis == 0))
   {
     sendDataPrevMillis = millis();
-
+    String path = "data/";
     // send constant data
-    SendFloatData(initLAT, "initLAT");
-    SendFloatData(initLNG, "initLNG");
+    SendFloatData(initLAT, path+"initLAT");
+    SendFloatData(initLNG, path+"initLNG");
     
     // send updateable data
-    SendFloatData(currLAT, "currLAT");
-    SendFloatData(currLNG, "currLNG");
-    SendFloatData(currSPD, "currSPD");
-    SendFloatData(distance, "distance");
+    SendFloatData(currLAT, path+"currLAT");
+    SendFloatData(currLNG, path+"currLNG");
+    SendFloatData(currSPD, path+"currSPD");
+    SendFloatData(distance, path+"distance");
 
     // then calculate the status of the vehicle
     if(distance > 10.0 || currSPD > 10.0) {
@@ -163,7 +163,7 @@ void FirebaseOperation()
     } else {
         currSTAT = "false";
     }
-    SendStringData(currSTAT, "status");
+    SendStringData(currSTAT, path+"status");
 
     initLAT+=0.1;
     initLNG+=0.2;
