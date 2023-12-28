@@ -1,4 +1,4 @@
-// TO-DO: parse data from Tx esp32
+// TO-DO: delete Serial monitor for faster transmission
 #if defined(ESP32)
   #include <WiFi.h>
 #elif defined(ESP8266)
@@ -8,7 +8,10 @@
 #include <Firebase_ESP_Client.h>
 #include <LoRa.h>
 #include <SPI.h>
- 
+
+/* COMMENT TO DISABLE */
+//#define DEBUGGING_MODE
+
 #define ss 5
 #define rst 14
 #define dio0 2
@@ -19,20 +22,20 @@
 #include "addons/RTDBHelper.h"
 
 // Insert your network credentials
-#define WIFI_SSID "*******************"
-#define WIFI_PASSWORD "*******************"
+#define WIFI_SSID "*********************"
+#define WIFI_PASSWORD "*********************"
 
 // Insert Firebase project API Key
 // alfa
-//#define API_KEY "*******************"
+//#define API_KEY "*********************"
 // evander
-#define API_KEY "*******************"
+#define API_KEY "*********************"
 
 // Insert RTDB URLefine the RTDB URL */
 // alfa
-//#define DATABASE_URL "*******************"
+//#define DATABASE_URL "*********************"
 // evander
-#define DATABASE_URL "*******************" 
+#define DATABASE_URL "*********************" 
 
 //Define Firebase Data object
 FirebaseData fbdo;
@@ -40,8 +43,8 @@ FirebaseData fbdo;
 FirebaseAuth auth;
 FirebaseConfig config;
 
-unsigned long sendDataPrevMillis = 0;
-unsigned long recvLoraPrevMillis = 0;
+unsigned long long sendDataPrevMillis = 0;
+unsigned long long recvLoraPrevMillis = 0;
 bool signupOK = false;
 
 /* LIST OF DATA */
@@ -53,16 +56,20 @@ float  currSPD  = 0.0;
 float  distance = 0.0;
 String currSTAT = "false";
 
+bool intStat    = false;
+bool floatStat  = false;
+bool stringStat = false;
+
 void setup()
 {
     Serial.begin(115200);
-//    InitLora();
+    InitLora();
     InitFirebase();
 }
 
 void loop() {
   // From Tx ESP32
-//  LoraOperation();
+  LoraOperation();
   // To Firebase  
   FirebaseOperation();
 }
@@ -120,21 +127,25 @@ void InitFirebase()
 void LoraOperation()
 {
   String inString = "";    // string to hold input
-  if(millis() - recvLoraPrevMillis > 1000 || recvLoraPrevMillis == 0) 
+  if(millis() >= recvLoraPrevMillis + 500) 
   {
-    recvLoraPrevMillis = millis();
+    recvLoraPrevMillis += 500;
     
     int packetSize = LoRa.parsePacket();
     
     if (packetSize) { 
         // read packet    
         while (LoRa.available()) {
-          int inChar = LoRa.read();
-          inString += (char)inChar;
-          currLAT = inString.toInt();       
-        }
-        inString = "";     
-        LoRa.packetRssi();    
+          inString += (char)LoRa.read();
+        }  
+        
+        // save to variables
+        sscanf(inString.c_str(), "%f;%f;%f;%f;%f;%f",
+        &initLAT, &initLNG, &currLAT, &currLNG, &currSPD, &distance); 
+
+        #ifdef DEBUGGING_MODE
+        Serial.printf("%f;%f;%f;%f;%f;%f\n", initLAT, initLNG, currLAT, currLNG, currSPD, distance);
+        #endif
     }
     
   }
@@ -142,19 +153,18 @@ void LoraOperation()
 
 void FirebaseOperation()
 {
-  if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 1000 || sendDataPrevMillis == 0))
+  if (Firebase.ready() && signupOK && (millis() >= sendDataPrevMillis + 600))
   {
-    sendDataPrevMillis = millis();
-    String path = "data/";
+    sendDataPrevMillis += 600;
     // send constant data
-    SendFloatData(initLAT, path+"initLAT");
-    SendFloatData(initLNG, path+"initLNG");
+    SendFloatData(initLAT, "initLAT");
+    SendFloatData(initLNG, "initLNG");
     
     // send updateable data
-    SendFloatData(currLAT, path+"currLAT");
-    SendFloatData(currLNG, path+"currLNG");
-    SendFloatData(currSPD, path+"currSPD");
-    SendFloatData(distance, path+"distance");
+    SendFloatData(currLAT, "currLAT");
+    SendFloatData(currLNG, "currLNG");
+    SendFloatData(currSPD, "currSPD");
+    SendFloatData(distance,"distance");
 
     // then calculate the status of the vehicle
     if(distance > 10.0 || currSPD > 10.0) {
@@ -163,55 +173,72 @@ void FirebaseOperation()
     } else {
         currSTAT = "false";
     }
-    SendStringData(currSTAT, path+"status");
-
-    initLAT+=0.1;
-    initLNG+=0.2;
-    currLAT+=0.3;
-    currLNG+=0.4;
-    currSPD+=0.5;
-    distance+=0.6;
+    SendStringData(currSTAT, "status");
   }
 }
 
 void SendFloatData(float inputData, String nodeName)
 {   // Write an Float number on the database path nodeName
-    if (Firebase.RTDB.setFloat(&fbdo, nodeName, inputData)) 
+    String pathStart = "data/Data/";
+    String pathEnd = "";
+    if (Firebase.RTDB.setFloat(&fbdo, pathStart+nodeName+pathEnd, inputData)) 
     {
+        #ifdef DEBUGGING_MODE
         Serial.println("PASSED");
         Serial.println("PATH: " + fbdo.dataPath());
         Serial.println("TYPE: " + fbdo.dataType());
+        #endif
+        floatStat = true;
     }
     else {
+        #ifdef DEBUGGING_MODE
         Serial.println("FAILED");
         Serial.println("REASON: " + fbdo.errorReason());
+        #endif
+        floatStat = false;
     }
 }
 
 void SendIntData(int inputData, String nodeName)
 {   // Write an Int number on the database path nodeName
-    if (Firebase.RTDB.setInt(&fbdo, nodeName, inputData))
+    String pathStart = "data/Data/";
+    String pathEnd = "";
+    if (Firebase.RTDB.setInt(&fbdo, pathStart+nodeName+pathEnd, inputData))
     {
+      #ifdef DEBUGGING_MODE
       Serial.println("PASSED");
       Serial.println("PATH: " + fbdo.dataPath());
       Serial.println("TYPE: " + fbdo.dataType());
+      #endif
+      intStat = true;
     }
     else {
+      #ifdef DEBUGGING_MODE
       Serial.println("FAILED");
       Serial.println("REASON: " + fbdo.errorReason());
+      #endif
+      intStat = false;
     }
 }
 
 void SendStringData(String inputData, String nodeName)
 {   // Write an String on the database path nodeName
-    if (Firebase.RTDB.setString(&fbdo, nodeName, inputData))
+    String pathStart = "data/Data/";
+    String pathEnd = "";
+    if (Firebase.RTDB.setString(&fbdo, pathStart+nodeName+pathEnd, inputData))
     {
+      #ifdef DEBUGGING_MODE
       Serial.println("PASSED");
       Serial.println("PATH: " + fbdo.dataPath());
       Serial.println("TYPE: " + fbdo.dataType());
+      #endif
+      stringStat = true;
     }
     else {
+      #ifdef DEBUGGING_MODE
       Serial.println("FAILED");
       Serial.println("REASON: " + fbdo.errorReason());
+      #endif
+      stringStat = false;
     }
 }
